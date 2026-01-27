@@ -55,7 +55,8 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Set user ID in context (placeholder)
 		// In real implementation, extract user ID from token
-		c.Set("userID", "placeholder-user-id")
+		// For now, use a fixed UUID for testing
+		c.Set("user_id", "123e4567-e89b-12d3-a456-426614174000")
 		c.Set("token", token)
 
 		c.Next()

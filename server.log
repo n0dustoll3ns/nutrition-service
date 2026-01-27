@@ -1,0 +1,25 @@
+2026/01/27 23:47:01 USDA food import on startup is disabled in configuration
+2026/01/27 23:47:01 Connected to database at localhost:5432/nutrition_db
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /health                   --> main.main.func1 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/register     --> main.main.func2 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/login        --> main.main.func3 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/logout       --> main.main.func4 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/refresh      --> main.main.func5 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/password-reset-request --> main.main.func6 (3 handlers)
+[GIN-debug] POST   /api/v1/auth/password-reset-confirm --> main.main.func7 (3 handlers)
+[GIN-debug] GET    /api/v1/protected/me      --> main.main.func8 (4 handlers)
+[GIN-debug] GET    /api/v1/protected/foods/search --> github.com/yourusername/auth-service/internal/handler.(*FoodHandler).SearchFoods-fm (4 handlers)
+[GIN-debug] GET    /api/v1/protected/foods/:id --> github.com/yourusername/auth-service/internal/handler.(*FoodHandler).GetFoodByID-fm (4 handlers)
+[GIN-debug] GET    /api/v1/protected/diary/entries --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).GetDiaryEntries-fm (4 handlers)
+[GIN-debug] POST   /api/v1/protected/diary/entries --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).CreateFoodEntry-fm (4 handlers)
+[GIN-debug] PUT    /api/v1/protected/diary/entries/:id --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).UpdateFoodEntry-fm (4 handlers)
+[GIN-debug] DELETE /api/v1/protected/diary/entries/:id --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).DeleteFoodEntry-fm (4 handlers)
+[GIN-debug] GET    /api/v1/protected/diary/summary --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).GetDiarySummary-fm (4 handlers)
+[GIN-debug] POST   /api/v1/protected/diary/copy --> github.com/yourusername/auth-service/internal/handler.(*DiaryHandler).CopyDiaryEntries-fm (4 handlers)
+2026/01/27 23:47:01 Starting server on 0.0.0.0:8080
+[GIN] 2026/01/27 - 23:47:10 | 200 |     463.542µs |             ::1 | GET      "/health"
+[GIN] 2026/01/27 - 23:47:18 | 500 |   22.944041ms |             ::1 | POST     "/api/v1/protected/diary/entries"

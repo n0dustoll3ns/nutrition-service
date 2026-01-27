@@ -55,4 +55,4 @@ importer:
   json_path: "usda-importer/FoodData_Central_foundation_food_json_2025-12-18.json"
   schema: "nutrition"
   # Set to false to skip import on startup
-  import_on_startup: true
+  import_on_startup: false

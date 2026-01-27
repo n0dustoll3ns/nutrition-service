@@ -44,9 +44,11 @@ func main() {
 
 	// Initialize repositories
 	foodRepo := repository.NewFoodRepository(db)
+	diaryRepo := repository.NewDiaryRepository(db)
 
 	// Initialize handlers
 	foodHandler := handler.NewFoodHandler(foodRepo)
+	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo)
 
 	// Set Gin mode
 	if gin.Mode() == "" {
@@ -121,6 +123,17 @@ func main() {
 			{
 				foods.GET("/search", foodHandler.SearchFoods)
 				foods.GET("/:id", foodHandler.GetFoodByID)
+			}
+
+			// Diary routes (protected)
+			diary := protected.Group("/diary")
+			{
+				diary.GET("/entries", diaryHandler.GetDiaryEntries)
+				diary.POST("/entries", diaryHandler.CreateFoodEntry)
+				diary.PUT("/entries/:id", diaryHandler.UpdateFoodEntry)
+				diary.DELETE("/entries/:id", diaryHandler.DeleteFoodEntry)
+				diary.GET("/summary", diaryHandler.GetDiarySummary)
+				diary.POST("/copy", diaryHandler.CopyDiaryEntries)
 			}
 		}
 	}
