@@ -23,3 +23,6 @@
 2026/01/27 23:47:01 Starting server on 0.0.0.0:8080
 [GIN] 2026/01/27 - 23:47:10 | 200 |     463.542µs |             ::1 | GET      "/health"
 [GIN] 2026/01/27 - 23:47:18 | 500 |   22.944041ms |             ::1 | POST     "/api/v1/protected/diary/entries"
+[GIN] 2026/02/02 - 23:54:48 | 404 |         750ns |             ::1 | GET      "/"
+[GIN] 2026/02/02 - 23:54:48 | 404 |         958ns |             ::1 | GET      "/favicon.ico"
+[GIN] 2026/02/02 - 23:54:50 | 404 |       1.375µs |             ::1 | GET      "/flutter_service_worker.js?v=null"
