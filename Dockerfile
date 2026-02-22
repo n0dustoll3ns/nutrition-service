@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -27,8 +27,8 @@ WORKDIR /root/
 COPY --from=builder /app/auth-service .
 COPY --from=builder /app/config.yaml .
 
-# Copy USDA food data JSON file
-COPY --from=builder /app/usda-importer/FoodData_Central_foundation_food_json_2025-12-18.json /app/data/foods.json
+    # Copy USDA food data JSON file
+    COPY --from=builder /app/usda_importer/FoodData_Central_foundation_food_json_2025-12-18.json /app/data/foods.json
 
 # Create data directory
 RUN mkdir -p /app/data
