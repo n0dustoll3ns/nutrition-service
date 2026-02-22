@@ -1,76 +1,90 @@
-# Auth Service
+# Nutrition Service
 
-Сервис авторизации на Go с использованием JWT токенов и PostgreSQL.
+Сервис для отслеживания питания с полноценной системой авторизации и дневником питания.
 
-## Функциональность
+## Основная функциональность
 
-- Регистрация пользователей
-- Вход по email/паролю
-- Выход (инвалидация токенов)
-- Обновление access токенов через refresh токены
-- Восстановление пароля
-- Защищенные endpoints с JWT аутентификацией
+### ✅ Система авторизации (полностью реализована)
 
-## Технологии
+- **Регистрация пользователей** - валидация email, проверка сложности пароля
+- **Вход по email/паролю** - JWT токены, обновление через refresh токены
+- **Выход из системы** - инвалидация токенов
+- **Восстановление пароля** - токены сброса пароля
+- **JWT аутентификация** - middleware с реальной валидацией токенов
+- **Audit logging** - запись действий пользователей
+- **Rate limiting** - защита от брутфорс атак
 
-- **Go 1.21+**
-- **PostgreSQL** - основная база данных
+### ✅ Дневник питания
+
+- Добавление записей о потребленных продуктах
+- Просмотр истории по дням
+- Суммарная информация по нутриентам
+- Копирование записей между днями
+
+### ✅ База данных продуктов USDA
+
+- 365 продуктов с полной нутриентной информацией
+- Поиск по описанию продуктов
+- Автоматический импорт при запуске
+
+### ✅ Технологии
+
+- **Go 1.23+** - основной язык
+- **PostgreSQL** - основная база данных  
 - **Gin** - веб-фреймворк
-- **JWT** - JSON Web Tokens для аутентификации
+- **JWT** - аутентификация с access/refresh токенами
 - **Docker** - контейнеризация
 - **Viper** - управление конфигурацией
 
 ## Быстрый старт
 
-### Предварительные требования
-
-- Go 1.21 или выше
-- Docker и Docker Compose
-- PostgreSQL (если запускаете без Docker)
-
-### Установка
+### Запуск с Docker (рекомендуется)
 
 1. Клонируйте репозиторий:
+
 ```bash
 git clone <repository-url>
-cd auth-service
+cd nutrition-service
 ```
-
-2. Установите зависимости:
-```bash
-go mod download
-```
-
-3. Настройте конфигурацию:
-```bash
-cp config.yaml.example config.yaml
-# Отредактируйте config.yaml под свои нужды
-```
-
-### Запуск с Docker
 
 1. Запустите сервисы:
+
 ```bash
-make docker-up
+docker-compose up --build -d
 ```
 
-2. Сервис будет доступен по адресу: http://localhost:8080
+1. Сервис будет доступен по адресу:
 
-### Запуск без Docker
+<http://localhost:8080>
 
-1. Запустите PostgreSQL:
+1. Проверьте статус:
+
 ```bash
-# Убедитесь, что PostgreSQL запущен на localhost:5432
+docker-compose ps
 ```
 
-2. Выполните миграции:
+### Тестирование API
+
+1. Проверка здоровья сервиса:
+
 ```bash
-# TODO: Добавить команду для миграций
+curl http://localhost:8080/health
 ```
 
-3. Запустите сервис:
+1. Регистрация пользователя:
+
 ```bash
-make run
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!@#","first_name":"Test","last_name":"User"}'
+```
+
+1. Вход в систему:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!@#"}'
 ```
 
 ## API Endpoints
@@ -104,18 +118,25 @@ server:
   host: "0.0.0.0"
 
 database:
-  host: "localhost"
-  port: 5432
+  host: "host.docker.internal"  # для Docker Compose
+  port: 5433                    # порт для доступа из контейнера
   user: "postgres"
   password: "postgres"
   dbname: "nutrition_db"
   schema: "auth"
 
 jwt:
-  access_token_secret: "your-secret-key"
-  refresh_token_secret: "your-refresh-secret-key"
+  access_token_secret: "your-secret-key-change-in-production"
+  refresh_token_secret: "your-refresh-secret-key-change-in-production"
   access_token_expiry: "15m"
   refresh_token_expiry: "7d"
+
+security:
+  bcrypt_cost: 12
+  password_min_length: 8
+  require_special_char: true
+  require_number: true
+  require_uppercase: true
 ```
 
 ## Безопасность
@@ -131,29 +152,34 @@ jwt:
 
 Реализована функциональность для ведения дневника питания пользователей. Пользователи могут добавлять записи о потребленных продуктах, просматривать историю, получать суммарную информацию по дням и копировать записи между днями.
 
-**Важно:** Функциональность реализована, но требует тестирования и настройки аутентификации (временная middleware использует фиксированный UUID пользователя).
+**Примечание:** Для доступа к endpoints дневника требуется JWT аутентификация.
 
 ### Endpoints дневника
 
 Все endpoints требуют аутентификации (заголовок `Authorization: Bearer <token>`).
 
 #### Получение записей дневника
+
 **Endpoint:** `GET /api/v1/protected/diary/entries`
 
 **Параметры:**
+
 - `date` (обязательный) - дата в формате YYYY-MM-DD
 - `daysCount` (опционально, по умолчанию 1) - количество дней для выборки (1-7)
 
 **Пример запроса:**
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:8080/api/v1/protected/diary/entries?date=2024-01-27&daysCount=1"
 ```
 
 #### Создание записи о продукте
+
 **Endpoint:** `POST /api/v1/protected/diary/entries`
 
 **Тело запроса (JSON):**
+
 ```json
 {
   "fdc_id": 747429,                    // ID продукта из базы USDA (опционально, если используется custom_food_name)
@@ -170,32 +196,40 @@ curl -H "Authorization: Bearer <token>" \
 **Примечание:** Должен быть указан либо `fdc_id` (для продуктов из базы USDA), либо `custom_food_name` (для пользовательских продуктов).
 
 #### Обновление записи
+
 **Endpoint:** `PUT /api/v1/protected/diary/entries/:id`
 
 **Параметры:**
+
 - `id` (в пути) - UUID записи дневника
 
 **Тело запроса:** аналогично созданию записи
 
 #### Удаление записи
+
 **Endpoint:** `DELETE /api/v1/protected/diary/entries/:id`
 
 **Параметры:**
+
 - `id` (в пути) - UUID записи дневника
 
 #### Получение суммарной информации
+
 **Endpoint:** `GET /api/v1/protected/diary/summary`
 
 **Параметры:**
+
 - `date` (обязательный) - дата в формате YYYY-MM-DD
 - `daysCount` (опционально, по умолчанию 1) - количество дней для агрегации (1-30)
 
 Возвращает суммарные значения калорий, белков, жиров, углеводов и других нутриентов за указанный период.
 
 #### Копирование записей между днями
+
 **Endpoint:** `POST /api/v1/protected/diary/copy`
 
 **Тело запроса (JSON):**
+
 ```json
 {
   "source_date": "2024-01-27",         // Дата-источник
@@ -207,6 +241,7 @@ curl -H "Authorization: Bearer <token>" \
 ### Структура базы данных
 
 Создана схема `diary` с таблицей `food_entries`:
+
 - `id` - UUID, первичный ключ
 - `user_id` - UUID пользователя (внешний ключ на auth.users)
 - `fdc_id` - ID продукта из базы USDA (опционально)
@@ -228,17 +263,20 @@ curl -H "Authorization: Bearer <token>" \
 **Endpoint:** `GET /api/v1/protected/foods/search`
 
 **Параметры:**
+
 - `q` (обязательный) - строка поиска
 - `limit` (опционально, по умолчанию 20) - количество результатов на странице (максимум 100)
 - `offset` (опционально, по умолчанию 0) - смещение для пагинации
 
 **Пример запроса:**
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:8080/api/v1/protected/foods/search?q=cheese&limit=5"
 ```
 
 **Ответ:**
+
 ```json
 {
   "data": [
@@ -276,9 +314,11 @@ curl -H "Authorization: Bearer <token>" \
 **Endpoint:** `GET /api/v1/protected/foods/:id`
 
 **Параметры:**
+
 - `id` (в пути) - FDC ID продукта
 
 **Пример запроса:**
+
 ```bash
 curl -H "Authorization: Bearer <token>" \
   "http://localhost:8080/api/v1/protected/foods/747429"
@@ -290,26 +330,20 @@ curl -H "Authorization: Bearer <token>" \
 
 ## Структура проекта
 
-```
-auth-service/
+``` bash
+nutrition-service/
 ├── cmd/
 │   └── server/
 │       └── main.go          # Точка входа
 ├── internal/
 │   ├── config/              # Конфигурация
-│   ├── handler/             # HTTP обработчики
-│   │   └── food_handler.go  # Обработчики для продуктов
-│   ├── middleware/          # Middleware (аутентификация, логирование)
-│   ├── model/               # Модели данных
-│   │   └── food.go          # Модели для продуктов
+│   ├── handler/             # HTTP обработчики (auth, food, diary)
+│   ├── middleware/          # Middleware (аутентификация, логирование, rate limiting)
+│   ├── model/               # Модели данных (user, token, food, diary)
 │   ├── repository/          # Работа с базой данных
-│   │   └── food_repository.go # Репозиторий для продуктов
-│   ├── service/             # Бизнес-логика
-│   └── utils/               # Вспомогательные функции
+│   └── utils/               # Вспомогательные функции (JWT, password)
 ├── migrations/              # Миграции базы данных
-│   └── 002_create_nutrition_schema.up.sql # Схема для продуктов
-├── usda-importer/           # Данные USDA
-├── pkg/                     # Публичные пакеты
+├── usda_importer/           # Данные USDA
 ├── config.yaml              # Конфигурация
 ├── Dockerfile              # Docker образ
 ├── docker-compose.yml      # Docker Compose
@@ -371,7 +405,7 @@ make fmt
 ### Сборка Docker образа
 
 ```bash
-docker build -t auth-service:latest .
+docker build -t nutrition-service:latest .
 ```
 
 ### Запуск в production
