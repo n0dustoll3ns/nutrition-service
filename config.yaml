@@ -52,7 +52,7 @@ rate_limit:
 # USDA food importer configuration
 importer:
   enabled: true
-  json_path: "usda_importer/FoodData_Central_foundation_food_json_2025-12-18.json"
+  json_path: "/app/data/foods.json"
   schema: "nutrition"
   # Set to false to skip import on startup
-  import_on_startup: false
+  import_on_startup: true

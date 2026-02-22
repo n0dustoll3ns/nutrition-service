@@ -45,10 +45,14 @@ func main() {
 	// Initialize repositories
 	foodRepo := repository.NewFoodRepository(db)
 	diaryRepo := repository.NewDiaryRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	tokenRepo := repository.NewTokenRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
 
 	// Initialize handlers
 	foodHandler := handler.NewFoodHandler(foodRepo)
 	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo)
+	authHandler := handler.NewAuthHandler(userRepo, tokenRepo, cfg)
 
 	// Set Gin mode
 	if gin.Mode() == "" {
@@ -61,6 +65,20 @@ func main() {
 	// Middleware
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	
+	// Rate limiting middleware
+	rateLimitConfig := middleware.RateLimiterConfig{
+		Enabled:           cfg.RateLimit.Enabled,
+		RequestsPerMinute: cfg.RateLimit.RequestsPerMinute,
+		Burst:             cfg.RateLimit.Burst,
+	}
+	router.Use(middleware.NewRateLimitMiddleware(rateLimitConfig))
+	
+	// Audit logging middleware
+	router.Use(middleware.NewAuditMiddleware(auditRepo))
+	
+	// Auth middleware (will be applied to protected routes)
+	authMiddleware := middleware.NewAuthMiddleware(cfg, tokenRepo)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -73,50 +91,22 @@ func main() {
 	// API v1 routes
 	apiV1 := router.Group("/api/v1")
 	{
-		// Auth routes
+		// Auth routes (public)
 		auth := apiV1.Group("/auth")
 		{
-			auth.POST("/register", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Register endpoint - to be implemented",
-				})
-			})
-			auth.POST("/login", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Login endpoint - to be implemented",
-				})
-			})
-			auth.POST("/logout", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Logout endpoint - to be implemented",
-				})
-			})
-			auth.POST("/refresh", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Refresh token endpoint - to be implemented",
-				})
-			})
-			auth.POST("/password-reset-request", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Password reset request endpoint - to be implemented",
-				})
-			})
-			auth.POST("/password-reset-confirm", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Password reset confirm endpoint - to be implemented",
-				})
-			})
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/logout", authHandler.Logout)
+			auth.POST("/refresh", authHandler.Refresh)
+			auth.POST("/password-reset-request", authHandler.PasswordResetRequest)
+			auth.POST("/password-reset-confirm", authHandler.PasswordResetConfirm)
 		}
 
 		// Protected routes (require authentication)
 		protected := apiV1.Group("/protected")
-		protected.Use(middleware.AuthMiddleware())
+		protected.Use(authMiddleware)
 		{
-			protected.GET("/me", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"message": "Get current user endpoint - to be implemented",
-				})
-			})
+			protected.GET("/me", authHandler.GetCurrentUser)
 
 			// Food routes (protected)
 			foods := protected.Group("/foods")

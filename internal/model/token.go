@@ -1,8 +1,10 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -63,6 +65,45 @@ type TokenClaims struct {
 	Exp     int64     `json:"exp"`
 	Iat     int64     `json:"iat"`
 	Type    TokenType `json:"type"`
+}
+
+// Valid implements jwt.Claims interface
+func (c *TokenClaims) Valid() error {
+	// Check if token is expired
+	if c.Exp < time.Now().Unix() {
+		return fmt.Errorf("token is expired")
+	}
+	return nil
+}
+
+// GetAudience implements jwt.Claims interface
+func (c *TokenClaims) GetAudience() (jwt.ClaimStrings, error) {
+	return jwt.ClaimStrings{}, nil
+}
+
+// GetExpirationTime implements jwt.Claims interface
+func (c *TokenClaims) GetExpirationTime() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(c.Exp, 0)), nil
+}
+
+// GetIssuedAt implements jwt.Claims interface
+func (c *TokenClaims) GetIssuedAt() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(c.Iat, 0)), nil
+}
+
+// GetIssuer implements jwt.Claims interface
+func (c *TokenClaims) GetIssuer() (string, error) {
+	return "", nil
+}
+
+// GetNotBefore implements jwt.Claims interface
+func (c *TokenClaims) GetNotBefore() (*jwt.NumericDate, error) {
+	return jwt.NewNumericDate(time.Unix(c.Iat, 0)), nil
+}
+
+// GetSubject implements jwt.Claims interface
+func (c *TokenClaims) GetSubject() (string, error) {
+	return c.UserID, nil
 }
 
 // PasswordResetRequest represents a password reset request
