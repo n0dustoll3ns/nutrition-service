@@ -66,6 +66,9 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	
+	// CORS middleware (must be before other middleware)
+	router.Use(middleware.NewCORSMiddleware())
+	
 	// Rate limiting middleware
 	rateLimitConfig := middleware.RateLimiterConfig{
 		Enabled:           cfg.RateLimit.Enabled,
