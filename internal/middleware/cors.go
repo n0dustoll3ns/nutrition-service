@@ -73,8 +73,13 @@ func CORSMiddleware(config *CORSConfig) gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 		
 		// Check if origin is allowed
-		if origin != "" && allowedOrigins[origin] {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		if origin != "" {
+			// Allow all localhost ports
+			if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			} else if allowedOrigins[origin] {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			}
 		}
 		
 		// Set CORS headers
