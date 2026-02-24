@@ -101,25 +101,47 @@ func (r *tokenRepository) GetRefreshTokenByHash(ctx context.Context, tokenHash s
 
 // GetRefreshTokenByUserAndDevice retrieves a refresh token by user ID and device info
 func (r *tokenRepository) GetRefreshTokenByUserAndDevice(ctx context.Context, userID uuid.UUID, deviceInfo *string) (*model.RefreshToken, error) {
-	query := `
-		SELECT 
-			id, user_id, token_hash, device_info, ip_address, 
-			expires_at, revoked_at, created_at
-		FROM auth.refresh_tokens
-		WHERE user_id = $1 AND device_info = $2
-	`
-
+	var query string
+	var err error
 	token := &model.RefreshToken{}
-	err := r.db.QueryRowContext(ctx, query, userID, deviceInfo).Scan(
-		&token.ID,
-		&token.UserID,
-		&token.TokenHash,
-		&token.DeviceInfo,
-		&token.IPAddress,
-		&token.ExpiresAt,
-		&token.RevokedAt,
-		&token.CreatedAt,
-	)
+
+	if deviceInfo == nil {
+		query = `
+			SELECT 
+				id, user_id, token_hash, device_info, ip_address, 
+				expires_at, revoked_at, created_at
+			FROM auth.refresh_tokens
+			WHERE user_id = $1 AND device_info IS NULL
+		`
+		err = r.db.QueryRowContext(ctx, query, userID).Scan(
+			&token.ID,
+			&token.UserID,
+			&token.TokenHash,
+			&token.DeviceInfo,
+			&token.IPAddress,
+			&token.ExpiresAt,
+			&token.RevokedAt,
+			&token.CreatedAt,
+		)
+	} else {
+		query = `
+			SELECT 
+				id, user_id, token_hash, device_info, ip_address, 
+				expires_at, revoked_at, created_at
+			FROM auth.refresh_tokens
+			WHERE user_id = $1 AND device_info = $2
+		`
+		err = r.db.QueryRowContext(ctx, query, userID, deviceInfo).Scan(
+			&token.ID,
+			&token.UserID,
+			&token.TokenHash,
+			&token.DeviceInfo,
+			&token.IPAddress,
+			&token.ExpiresAt,
+			&token.RevokedAt,
+			&token.CreatedAt,
+		)
+	}
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("refresh token not found: %w", err)
