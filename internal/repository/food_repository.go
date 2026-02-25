@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/yourusername/auth-service/internal/model"
 	_ "github.com/lib/pq"
+	"github.com/yourusername/auth-service/internal/model"
 )
 
 // FoodRepository defines the interface for food data access
@@ -59,11 +59,11 @@ func (r *foodRepository) SearchFoods(ctx context.Context, query string, limit, o
 			f.description
 		LIMIT $4 OFFSET $5
 	`
-	
+
 	// Prepare search patterns for relevance sorting
 	exactPattern := query + "%"
 	containsPattern := "%" + query + "%"
-	
+
 	rows, err := r.db.QueryContext(ctx, searchQuery, containsPattern, exactPattern, containsPattern, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to search foods: %w", err)
@@ -97,9 +97,9 @@ func (r *foodRepository) SearchFoods(ctx context.Context, query string, limit, o
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get nutrients for food %d: %w", food.FDCID, err)
 		}
-		
+
 		result = append(result, &model.FoodWithNutrients{
-			Food:     food,
+			Food:      food,
 			Nutrients: nutrients,
 		})
 	}
@@ -118,7 +118,7 @@ func (r *foodRepository) getFoodNutrients(ctx context.Context, fdcID int) ([]*mo
 		WHERE fdc_id = $1
 		ORDER BY nutrient_id
 	`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, fdcID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query nutrients: %w", err)
@@ -169,7 +169,7 @@ func (r *foodRepository) GetFoodByID(ctx context.Context, fdcID int) (*model.Foo
 		FROM nutrition.foods f
 		WHERE f.fdc_id = $1
 	`
-	
+
 	var food model.Food
 	err := r.db.QueryRowContext(ctx, query, fdcID).Scan(
 		&food.FDCID,
@@ -192,7 +192,7 @@ func (r *foodRepository) GetFoodByID(ctx context.Context, fdcID int) (*model.Foo
 	}
 
 	return &model.FoodWithNutrients{
-		Food:     &food,
+		Food:      &food,
 		Nutrients: nutrients,
 	}, nil
 }

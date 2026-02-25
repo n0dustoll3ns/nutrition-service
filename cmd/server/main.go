@@ -105,29 +105,31 @@ func main() {
 			auth.POST("/password-reset-confirm", authHandler.PasswordResetConfirm)
 		}
 
-		// Protected routes (require authentication)
-		protected := apiV1.Group("/protected")
+		// User profile route (protected)
+		protected := apiV1.Group("/me")
 		protected.Use(authMiddleware)
 		{
-			protected.GET("/me", authHandler.GetCurrentUser)
+			protected.GET("", authHandler.GetCurrentUser)
+		}
 
-			// Food routes (protected)
-			foods := protected.Group("/foods")
-			{
-				foods.GET("/search", foodHandler.SearchFoods)
-				foods.GET("/:id", foodHandler.GetFoodByID)
-			}
+		// Food routes (protected)
+		foods := apiV1.Group("/foods")
+		foods.Use(authMiddleware)
+		{
+			foods.GET("/search", foodHandler.SearchFoods)
+			foods.GET("/:id", foodHandler.GetFoodByID)
+		}
 
-			// Diary routes (protected)
-			diary := protected.Group("/diary")
-			{
-				diary.GET("/entries", diaryHandler.GetDiaryEntries)
-				diary.POST("/entries", diaryHandler.CreateFoodEntry)
-				diary.PUT("/entries/:id", diaryHandler.UpdateFoodEntry)
-				diary.DELETE("/entries/:id", diaryHandler.DeleteFoodEntry)
-				diary.GET("/summary", diaryHandler.GetDiarySummary)
-				diary.POST("/copy", diaryHandler.CopyDiaryEntries)
-			}
+		// Diary routes (protected)
+		diary := apiV1.Group("/diary")
+		diary.Use(authMiddleware)
+		{
+			diary.GET("/entries", diaryHandler.GetDiaryEntries)
+			diary.POST("/entries", diaryHandler.CreateFoodEntry)
+			diary.PUT("/entries/:id", diaryHandler.UpdateFoodEntry)
+			diary.DELETE("/entries/:id", diaryHandler.DeleteFoodEntry)
+			diary.GET("/summary", diaryHandler.GetDiarySummary)
+			diary.POST("/copy", diaryHandler.CopyDiaryEntries)
 		}
 	}
 
