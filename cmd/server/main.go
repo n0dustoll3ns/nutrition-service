@@ -12,12 +12,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/yourusername/auth-service/internal/config"
 	"github.com/yourusername/auth-service/internal/handler"
 	"github.com/yourusername/auth-service/internal/importer"
 	"github.com/yourusername/auth-service/internal/middleware"
+	"github.com/yourusername/auth-service/internal/model"
 	"github.com/yourusername/auth-service/internal/repository"
+	"github.com/yourusername/auth-service/internal/utils"
 )
 
 func main() {
@@ -48,6 +51,9 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+
+	// DEBUG: Create super user for testing (REMOVE BEFORE DEPLOYMENT)
+	createSuperUserForDebug(userRepo, cfg)
 
 	// Initialize handlers
 	foodHandler := handler.NewFoodHandler(foodRepo)
@@ -244,4 +250,82 @@ func runFoodImport(cfg *config.Config) {
 	} else {
 		log.Println("USDA food import completed successfully")
 	}
+}
+
+// createSuperUserForDebug creates a super user for testing/debugging purposes
+// WARNING: This is a temporary hack for development. REMOVE BEFORE DEPLOYMENT!
+func createSuperUserForDebug(userRepo repository.UserRepository, cfg *config.Config) {
+	ctx := context.Background()
+	
+	// Check if super user already exists
+	user, err := userRepo.GetByEmail(ctx, "test@test.com")
+	if err == nil {
+		// User already exists, update password to "test"
+		log.Println("DEBUG: Super user 'test@test.com' already exists, updating password...")
+		
+		// Hash password
+		passwordHash, err := utils.HashPassword("test", cfg.Security.BcryptCost)
+		if err != nil {
+			log.Printf("DEBUG: Failed to hash password for super user: %v", err)
+			return
+		}
+		
+		// Update password
+		if err := userRepo.UpdatePassword(ctx, user.ID, passwordHash); err != nil {
+			log.Printf("DEBUG: Failed to update password for super user: %v", err)
+			return
+		}
+		
+		// Ensure user is active and verified
+		update := &model.UserUpdate{
+			IsActive: boolPtr(true),
+		}
+		if err := userRepo.Update(ctx, user.ID, update); err != nil {
+			log.Printf("DEBUG: Failed to update user status: %v", err)
+		}
+		
+		log.Println("DEBUG: Super user password updated to 'test'")
+		return
+	}
+	
+	// User doesn't exist, create it
+	log.Println("DEBUG: Creating super user for testing: test@test.com / test")
+	
+	// Hash password
+	passwordHash, err := utils.HashPassword("test", cfg.Security.BcryptCost)
+	if err != nil {
+		log.Printf("DEBUG: Failed to hash password for super user: %v", err)
+		return
+	}
+	
+	// Create user
+	now := time.Now()
+	user = &model.User{
+		ID:           uuid.New(),
+		Email:        "test@test.com",
+		PasswordHash: passwordHash,
+		FirstName:    stringPtr("Super"),
+		LastName:     stringPtr("User"),
+		IsActive:     true,
+		IsVerified:   true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	
+	if err := userRepo.Create(ctx, user); err != nil {
+		log.Printf("DEBUG: Failed to create super user: %v", err)
+		return
+	}
+	
+	log.Println("DEBUG: Super user created successfully")
+}
+
+// stringPtr returns a pointer to a string (helper function)
+func stringPtr(s string) *string {
+	return &s
+}
+
+// boolPtr returns a pointer to a bool (helper function)
+func boolPtr(b bool) *bool {
+	return &b
 }
