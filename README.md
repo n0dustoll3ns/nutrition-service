@@ -50,7 +50,7 @@ cd nutrition-service
 1. Запустите сервисы:
 
 ```bash
-
+docker-compose up -d
 ```
 
 1. Сервис будет доступен по адресу:
@@ -61,6 +61,93 @@ cd nutrition-service
 
 ```bash
 docker-compose ps
+```
+
+### Управление сервисом
+
+````markdown
+#### Перезапуск сервиса
+
+Если нужно перезапустить сервис (например, после изменений в коде или конфигурации):
+
+```bash
+# Остановить сервисы
+docker-compose down
+
+# Запустить сервисы заново
+docker-compose up -d
+````
+
+Или одной командой:
+
+```bash
+docker-compose restart
+```
+
+#### Просмотр логов
+
+Для просмотра логов сервиса:
+
+```bash
+# Логи всех сервисов
+docker-compose logs
+
+# Логи конкретного сервиса (например, auth-service)
+docker-compose logs auth-service
+
+# Логи в реальном времени
+docker-compose logs -f
+```
+
+#### Остановка сервиса
+
+Для полной остановки и удаления контейнеров:
+
+```bash
+docker-compose down
+```
+
+### Устранение проблем
+
+#### Ошибка Docker Desktop
+
+Если при запуске возникает ошибка:
+```
+unable to get image 'nutrition_service-auth-service': error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.51/images/nutrition_service-auth-service/json": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+```
+
+Это означает, что Docker Desktop не запущен. Решение:
+
+1. **Запустите Docker Desktop** через меню Пуск или ярлык на рабочем столе
+2. **Дождитесь полного запуска** Docker Desktop (иконка в системном трее должна стать зеленой)
+3. **Попробуйте снова** выполнить команду:
+
+```bash
+docker-compose up -d
+```
+
+#### Предупреждение о версии docker-compose
+
+Если появляется предупреждение:
+```
+level=warning msg="docker-compose.yml: the attribute `version` is obsolete, it will be ignored"
+```
+
+Это не критическая ошибка, а просто предупреждение. Файл `docker-compose.yml` будет работать нормально. Чтобы убрать предупреждение, можно удалить строку `version: '3.8'` из файла `docker-compose.yml`, но это не обязательно.
+
+#### Проверка состояния Docker
+
+Убедитесь, что Docker работает корректно:
+
+```bash
+# Проверка версии Docker
+docker --version
+
+# Проверка состояния Docker
+docker info
+
+# Проверка запущенных контейнеров
+docker ps
 ```
 
 ### Тестирование API
@@ -352,18 +439,6 @@ nutrition-service/
 ```
 
 ## Разработка
-
-### Запуск в режиме разработки
-
-```bash
-make dev
-```
-
-Или напрямую:
-
-```bash
-go build ./cmd/server && ./server
-```
 
 ### Импорт данных
 
