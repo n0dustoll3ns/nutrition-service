@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,19 +10,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/auth-service/internal/model"
 	"github.com/yourusername/auth-service/internal/repository"
+	"github.com/yourusername/auth-service/internal/utils"
 )
 
 // DiaryHandler handles diary-related HTTP requests
 type DiaryHandler struct {
 	diaryRepo repository.DiaryRepository
 	foodRepo  repository.FoodRepository
+	db        *sql.DB
 }
 
 // NewDiaryHandler creates a new DiaryHandler
-func NewDiaryHandler(diaryRepo repository.DiaryRepository, foodRepo repository.FoodRepository) *DiaryHandler {
+func NewDiaryHandler(diaryRepo repository.DiaryRepository, foodRepo repository.FoodRepository, db *sql.DB) *DiaryHandler {
 	return &DiaryHandler{
 		diaryRepo: diaryRepo,
 		foodRepo:  foodRepo,
+		db:        db,
 	}
 }
 
@@ -192,11 +196,29 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		return
 	}
 
-	// Calculate nutrients
-	var calculatedCalories, calculatedProtein, calculatedFat, calculatedCarbs *float64
-	
+	// Create nutrient calculator
+	nutrientCalculator := utils.NewNutrientCalculator(h.db)
+
+	// Calculate nutrients using the nutrient calculator
+	calculatedNutrients, err := nutrientCalculator.CalculateNutrientsWithFallback(
+		c.Request.Context(),
+		req.FDCID,
+		req.CustomCalories,
+		req.CustomProtein,
+		req.CustomFat,
+		req.CustomCarbs,
+		req.AmountGrams,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to calculate nutrients",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// If FDC ID is provided, verify the food exists
 	if req.FDCID != nil {
-		// Get food from USDA database and calculate nutrients
 		foodWithNutrients, err := h.foodRepo.GetFoodByID(c.Request.Context(), *req.FDCID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -213,29 +235,6 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 			})
 			return
 		}
-		
-		// Calculate nutrients based on amount_grams
-		// This is a simplified calculation - in reality you'd need to find
-		// the specific nutrients (calories, protein, fat, carbs) from the nutrients list
-		// For now, we'll use custom values if provided, otherwise set to nil
-		if req.CustomCalories != nil {
-			calculatedCalories = req.CustomCalories
-		}
-		if req.CustomProtein != nil {
-			calculatedProtein = req.CustomProtein
-		}
-		if req.CustomFat != nil {
-			calculatedFat = req.CustomFat
-		}
-		if req.CustomCarbs != nil {
-			calculatedCarbs = req.CustomCarbs
-		}
-	} else {
-		// Custom food - use provided custom values
-		calculatedCalories = req.CustomCalories
-		calculatedProtein = req.CustomProtein
-		calculatedFat = req.CustomFat
-		calculatedCarbs = req.CustomCarbs
 	}
 
 	// Create food entry
@@ -247,10 +246,10 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		FDCID:              req.FDCID,
 		CustomFoodName:     req.CustomFoodName,
 		AmountGrams:        req.AmountGrams,
-		CalculatedCalories: calculatedCalories,
-		CalculatedProtein:  calculatedProtein,
-		CalculatedFat:      calculatedFat,
-		CalculatedCarbs:    calculatedCarbs,
+		CalculatedCalories: calculatedNutrients.Calories,
+		CalculatedProtein:  calculatedNutrients.Protein,
+		CalculatedFat:      calculatedNutrients.Fat,
+		CalculatedCarbs:    calculatedNutrients.Carbs,
 		CreatedAt:          time.Now(),
 	}
 

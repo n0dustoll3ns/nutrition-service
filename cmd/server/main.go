@@ -57,7 +57,7 @@ func main() {
 
 	// Initialize handlers
 	foodHandler := handler.NewFoodHandler(foodRepo)
-	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo)
+	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo, db)
 	authHandler := handler.NewAuthHandler(userRepo, tokenRepo, cfg)
 
 	// Set Gin mode
