@@ -85,6 +85,65 @@ func (h *DiaryHandler) GetDiaryEntries(c *gin.Context) {
 		return
 	}
 
+	// Load food names for entries with FDCID
+	// Collect unique FDCIDs
+	fdcIDs := make(map[int]bool)
+	for _, entry := range entries {
+		if entry.FDCID != nil {
+			fdcIDs[*entry.FDCID] = true
+		}
+	}
+
+	// Load food names from repository in parallel for better performance
+	type foodResult struct {
+		fdcID int
+		name  string
+		err   error
+	}
+	
+	resultChan := make(chan foodResult, len(fdcIDs))
+	
+	// Launch goroutines to load food names
+	for fdcID := range fdcIDs {
+		go func(id int) {
+			food, err := h.foodRepo.GetFoodByID(c.Request.Context(), id)
+			if err != nil {
+				resultChan <- foodResult{fdcID: id, err: err}
+				return
+			}
+			if food != nil && food.Food != nil {
+				resultChan <- foodResult{fdcID: id, name: food.Food.Description}
+			} else {
+				resultChan <- foodResult{fdcID: id}
+			}
+		}(fdcID)
+	}
+	
+	// Collect results
+	foodNames := make(map[int]string)
+	for i := 0; i < len(fdcIDs); i++ {
+		result := <-resultChan
+		if result.err != nil {
+			// Log error but continue - we'll just skip this food name
+			fmt.Printf("Failed to load food name for FDCID %d: %v\n", result.fdcID, result.err)
+		} else if result.name != "" {
+			foodNames[result.fdcID] = result.name
+		}
+	}
+	close(resultChan)
+
+	// Set FoodName for each entry
+	for _, entry := range entries {
+		if entry.FDCID != nil {
+			if name, ok := foodNames[*entry.FDCID]; ok {
+				entry.FoodName = &name
+			}
+		} else if entry.CustomFoodName != nil {
+			// For custom foods, use the custom food name
+			entry.FoodName = entry.CustomFoodName
+		}
+	}
+
 	// Organize entries by date and meal type
 	daysMap := make(map[string]*model.DiaryDay)
 	mealTypes := model.MealTypes()
@@ -253,6 +312,19 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		CreatedAt:          time.Now(),
 	}
 
+	// Set FoodName for the entry
+	if req.FDCID != nil {
+		// Load food name from repository
+		food, err := h.foodRepo.GetFoodByID(c.Request.Context(), *req.FDCID)
+		if err == nil && food != nil && food.Food != nil {
+			foodName := food.Food.Description
+			entry.FoodName = &foodName
+		}
+	} else if req.CustomFoodName != nil {
+		// For custom foods, use the custom food name
+		entry.FoodName = req.CustomFoodName
+	}
+
 	// Save to database
 	err = h.diaryRepo.CreateFoodEntry(c.Request.Context(), entry)
 	if err != nil {
@@ -364,6 +436,21 @@ func (h *DiaryHandler) UpdateFoodEntry(c *gin.Context) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	// Set FoodName for the updated entry
+	if updatedEntry != nil {
+		if updatedEntry.FDCID != nil {
+			// Load food name from repository
+			food, err := h.foodRepo.GetFoodByID(c.Request.Context(), *updatedEntry.FDCID)
+			if err == nil && food != nil && food.Food != nil {
+				foodName := food.Food.Description
+				updatedEntry.FoodName = &foodName
+			}
+		} else if updatedEntry.CustomFoodName != nil {
+			// For custom foods, use the custom food name
+			updatedEntry.FoodName = updatedEntry.CustomFoodName
+		}
 	}
 
 	c.JSON(http.StatusOK, updatedEntry)
