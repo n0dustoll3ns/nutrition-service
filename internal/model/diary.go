@@ -14,7 +14,8 @@ type FoodEntry struct {
 	MealType           string    `json:"meal_type" db:"meal_type"`
 	FDCID              *int      `json:"fdc_id,omitempty" db:"fdc_id"`
 	CustomFoodName     *string   `json:"custom_food_name,omitempty" db:"custom_food_name"`
-	FoodName           *string   `json:"food_name,omitempty"` // Computed field: either from FDCID or CustomFoodName
+	RecipeID           *int      `json:"recipe_id,omitempty" db:"recipe_id"`
+	FoodName           *string   `json:"food_name,omitempty"` // Computed field: either from FDCID, CustomFoodName, or RecipeID
 	AmountGrams        float64   `json:"amount_grams" db:"amount_grams"`
 	CalculatedCalories *float64  `json:"calculated_calories,omitempty" db:"calculated_calories"`
 	CalculatedProtein  *float64  `json:"calculated_protein,omitempty" db:"calculated_protein"`
@@ -29,6 +30,7 @@ type FoodEntryCreate struct {
 	MealType       string   `json:"meal_type" binding:"required,oneof=breakfast brunch lunch afternoon_snack dinner snack"`
 	FDCID          *int     `json:"fdc_id,omitempty"`
 	CustomFoodName *string  `json:"custom_food_name,omitempty"`
+	RecipeID       *int     `json:"recipe_id,omitempty"`
 	AmountGrams    float64  `json:"amount_grams" binding:"required,gt=0"`
 	CustomCalories *float64 `json:"custom_calories,omitempty"`
 	CustomProtein  *float64 `json:"custom_protein,omitempty"`

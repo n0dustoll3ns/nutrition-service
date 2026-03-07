@@ -49,6 +49,19 @@ type SearchFoodResponse struct {
 	Pagination *Pagination          `json:"pagination"`
 }
 
+// CombinedSearchResult represents a combined search result (food or recipe)
+type CombinedSearchResult struct {
+	Type     string                 `json:"type"` // "food" or "recipe"
+	Food     *FoodWithNutrients     `json:"food,omitempty"`
+	Recipe   *RecipeWithIngredients `json:"recipe,omitempty"`
+}
+
+// CombinedSearchResponse represents the response for combined search
+type CombinedSearchResponse struct {
+	Data       []*CombinedSearchResult `json:"data"`
+	Pagination *Pagination             `json:"pagination"`
+}
+
 // Pagination represents pagination metadata
 type Pagination struct {
 	Page       int `json:"page"`

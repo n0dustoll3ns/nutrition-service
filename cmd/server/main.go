@@ -47,6 +47,7 @@ func main() {
 
 	// Initialize repositories
 	foodRepo := repository.NewFoodRepository(db)
+	recipeRepo := repository.NewRecipeRepository(db)
 	diaryRepo := repository.NewDiaryRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
@@ -56,7 +57,8 @@ func main() {
 	createSuperUserForDebug(userRepo, cfg)
 
 	// Initialize handlers
-	foodHandler := handler.NewFoodHandler(foodRepo)
+	foodHandler := handler.NewFoodHandler(foodRepo, recipeRepo)
+	recipeHandler := handler.NewRecipeHandler(recipeRepo, foodRepo)
 	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo, db)
 	authHandler := handler.NewAuthHandler(userRepo, tokenRepo, cfg)
 
@@ -124,6 +126,28 @@ func main() {
 		{
 			foods.GET("/search", foodHandler.SearchFoods)
 			foods.GET("/:id", foodHandler.GetFoodByID)
+		}
+
+		// Recipe routes (protected)
+		recipes := apiV1.Group("/recipes")
+		recipes.Use(authMiddleware)
+		{
+			recipes.POST("", recipeHandler.CreateRecipe)
+			recipes.GET("/my", recipeHandler.GetMyRecipes)
+			recipes.GET("/public", recipeHandler.GetPublicRecipes)
+			recipes.GET("/search", recipeHandler.SearchRecipes)
+			recipes.GET("/my-book", recipeHandler.GetMyRecipeBook)
+			recipes.GET("/:id", recipeHandler.GetRecipe)
+			recipes.PUT("/:id", recipeHandler.UpdateRecipe)
+			recipes.DELETE("/:id", recipeHandler.DeleteRecipe)
+			recipes.POST("/:id/add-to-my-book", recipeHandler.AddRecipeToMyBook)
+		}
+
+		// Combined search route (protected)
+		search := apiV1.Group("/search")
+		search.Use(authMiddleware)
+		{
+			search.GET("/combined", foodHandler.SearchCombined)
 		}
 
 		// Diary routes (protected)

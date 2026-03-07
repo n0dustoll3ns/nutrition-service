@@ -226,11 +226,22 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		return
 	}
 
-	// Validate that exactly one of fdc_id or custom_food_name is provided
-	if (req.FDCID == nil && req.CustomFoodName == nil) || (req.FDCID != nil && req.CustomFoodName != nil) {
+	// Validate that exactly one of fdc_id, custom_food_name, or recipe_id is provided
+	providedCount := 0
+	if req.FDCID != nil {
+		providedCount++
+	}
+	if req.CustomFoodName != nil {
+		providedCount++
+	}
+	if req.RecipeID != nil {
+		providedCount++
+	}
+	
+	if providedCount != 1 {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid request",
-			Message: "Exactly one of fdc_id or custom_food_name must be provided",
+			Message: "Exactly one of fdc_id, custom_food_name, or recipe_id must be provided",
 		})
 		return
 	}
@@ -304,6 +315,7 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		MealType:           req.MealType,
 		FDCID:              req.FDCID,
 		CustomFoodName:     req.CustomFoodName,
+		RecipeID:           req.RecipeID,
 		AmountGrams:        req.AmountGrams,
 		CalculatedCalories: calculatedNutrients.Calories,
 		CalculatedProtein:  calculatedNutrients.Protein,
@@ -323,6 +335,9 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 	} else if req.CustomFoodName != nil {
 		// For custom foods, use the custom food name
 		entry.FoodName = req.CustomFoodName
+	} else if req.RecipeID != nil {
+		// For recipes, we'll set the name later when loading entries
+		// The name will be loaded in GetDiaryEntries
 	}
 
 	// Save to database
