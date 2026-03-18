@@ -52,6 +52,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+	mealPlanRepo := repository.NewMealPlanRepository(db)
 
 	// DEBUG: Create super user for testing (REMOVE BEFORE DEPLOYMENT)
 	createSuperUserForDebug(userRepo, cfg)
@@ -61,6 +62,7 @@ func main() {
 	recipeHandler := handler.NewRecipeHandler(recipeRepo, foodRepo)
 	diaryHandler := handler.NewDiaryHandler(diaryRepo, foodRepo, db)
 	authHandler := handler.NewAuthHandler(userRepo, tokenRepo, cfg)
+	mealPlanHandler := handler.NewMealPlanHandler(mealPlanRepo, diaryRepo, foodRepo, db)
 
 	// Set Gin mode
 	if gin.Mode() == "" {
@@ -160,6 +162,21 @@ func main() {
 			diary.DELETE("/entries/:id", diaryHandler.DeleteFoodEntry)
 			diary.GET("/summary", diaryHandler.GetDiarySummary)
 			diary.POST("/copy", diaryHandler.CopyDiaryEntries)
+		}
+
+		// Meal plan routes (protected)
+		mealPlans := apiV1.Group("/meal-plans")
+		mealPlans.Use(authMiddleware)
+		{
+			mealPlans.POST("", mealPlanHandler.CreateMealPlan)
+			mealPlans.GET("", mealPlanHandler.GetMealPlans)
+			mealPlans.GET("/:id", mealPlanHandler.GetMealPlan)
+			mealPlans.PUT("/:id", mealPlanHandler.UpdateMealPlan)
+			mealPlans.DELETE("/:id", mealPlanHandler.DeleteMealPlan)
+			mealPlans.POST("/:id/entries", mealPlanHandler.CreateMealPlanEntry)
+			mealPlans.PUT("/:id/entries/:entryId", mealPlanHandler.UpdateMealPlanEntry)
+			mealPlans.DELETE("/:id/entries/:entryId", mealPlanHandler.DeleteMealPlanEntry)
+			mealPlans.POST("/:id/apply-to-diary", mealPlanHandler.ApplyMealPlanToDiary)
 		}
 	}
 

@@ -14,6 +14,7 @@ import (
 type DiaryRepository interface {
 	// Food entries
 	CreateFoodEntry(ctx context.Context, entry *model.FoodEntry) error
+	CreateFoodEntries(ctx context.Context, entries []*model.FoodEntry) error
 	GetFoodEntryByID(ctx context.Context, id uuid.UUID) (*model.FoodEntry, error)
 	GetFoodEntriesByPeriod(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time) ([]*model.FoodEntry, error)
 	UpdateFoodEntry(ctx context.Context, id uuid.UUID, update *model.FoodEntryUpdate) error
@@ -67,6 +68,59 @@ func (r *diaryRepository) CreateFoodEntry(ctx context.Context, entry *model.Food
 	
 	if err != nil {
 		return fmt.Errorf("failed to create food entry: %w", err)
+	}
+	
+	return nil
+}
+
+// CreateFoodEntries creates multiple food entries in the diary in a single transaction
+func (r *diaryRepository) CreateFoodEntries(ctx context.Context, entries []*model.FoodEntry) error {
+	// Use transaction to ensure atomicity
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	
+	query := `
+		INSERT INTO diary.food_entries (
+			id, user_id, date, meal_type, fdc_id, custom_food_name,
+			amount_grams, calculated_calories, calculated_protein,
+			calculated_fat, calculated_carbs, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`
+	
+	// Prepare statement for better performance
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+	
+	// Insert each entry
+	for _, entry := range entries {
+		_, err := stmt.ExecContext(ctx,
+			entry.ID,
+			entry.UserID,
+			entry.Date,
+			entry.MealType,
+			entry.FDCID,
+			entry.CustomFoodName,
+			entry.AmountGrams,
+			entry.CalculatedCalories,
+			entry.CalculatedProtein,
+			entry.CalculatedFat,
+			entry.CalculatedCarbs,
+			entry.CreatedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create food entry in batch: %w", err)
+		}
+	}
+	
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	
 	return nil

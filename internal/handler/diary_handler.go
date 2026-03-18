@@ -206,42 +206,45 @@ func (h *DiaryHandler) GetDiaryEntries(c *gin.Context) {
 }
 
 // CreateFoodEntry handles POST /api/v1/diary/entries
-// @Summary Create a new food entry
-// @Description Add a food entry to the diary
+// @Summary Create food entries
+// @Description Add one or multiple food entries to the diary
 // @Tags diary
 // @Accept json
 // @Produce json
-// @Param request body model.FoodEntryCreate true "Food entry data"
-// @Success 201 {object} model.FoodEntry
+// @Param request body any true "Food entry data (single object or array)"
+// @Success 201 {object} any "Single FoodEntry or array of FoodEntry"
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/v1/diary/entries [post]
 func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
-	var req model.FoodEntryCreate
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// Try to parse as array first
+	var reqArray []model.FoodEntryCreate
+	if err := c.ShouldBindJSON(&reqArray); err == nil {
+		// Successfully parsed as array
+		h.createFoodEntriesBatch(c, reqArray)
+		return
+	}
+
+	// Try to parse as single object
+	var reqSingle model.FoodEntryCreate
+	if err := c.ShouldBindJSON(&reqSingle); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid request body",
-			Message: err.Error(),
+			Message: "Request must be a single food entry object or an array of food entries",
 		})
 		return
 	}
 
-	// Validate that exactly one of fdc_id, custom_food_name, or recipe_id is provided
-	providedCount := 0
-	if req.FDCID != nil {
-		providedCount++
-	}
-	if req.CustomFoodName != nil {
-		providedCount++
-	}
-	if req.RecipeID != nil {
-		providedCount++
-	}
-	
-	if providedCount != 1 {
+	// Single entry - wrap in array and process
+	h.createFoodEntriesBatch(c, []model.FoodEntryCreate{reqSingle})
+}
+
+// createFoodEntriesBatch processes multiple food entries in batch
+func (h *DiaryHandler) createFoodEntriesBatch(c *gin.Context, reqs []model.FoodEntryCreate) {
+	if len(reqs) == 0 {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid request",
-			Message: "Exactly one of fdc_id, custom_food_name, or recipe_id must be provided",
+			Error:   "Empty request",
+			Message: "At least one food entry must be provided",
 		})
 		return
 	}
@@ -256,92 +259,149 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		return
 	}
 
-	// Parse date
-	date, err := time.Parse("2006-01-02", req.Date)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid date format",
-			Message: "Date must be in YYYY-MM-DD format",
-		})
-		return
-	}
-
 	// Create nutrient calculator
 	nutrientCalculator := utils.NewNutrientCalculator(h.db)
 
-	// Calculate nutrients using the nutrient calculator
-	calculatedNutrients, err := nutrientCalculator.CalculateNutrientsWithFallback(
-		c.Request.Context(),
-		req.FDCID,
-		req.CustomCalories,
-		req.CustomProtein,
-		req.CustomFat,
-		req.CustomCarbs,
-		req.AmountGrams,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "Failed to calculate nutrients",
-			Message: err.Error(),
-		})
-		return
-	}
+	var diaryEntries []*model.FoodEntry
+	var fdcIDsToVerify []int
 
-	// If FDC ID is provided, verify the food exists
-	if req.FDCID != nil {
-		foodWithNutrients, err := h.foodRepo.GetFoodByID(c.Request.Context(), *req.FDCID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "Internal server error",
-				Message: err.Error(),
-			})
-			return
+	// First pass: validate and prepare entries
+	for i, req := range reqs {
+		// Validate that exactly one of fdc_id, custom_food_name, or recipe_id is provided
+		providedCount := 0
+		if req.FDCID != nil {
+			providedCount++
+			fdcIDsToVerify = append(fdcIDsToVerify, *req.FDCID)
+		}
+		if req.CustomFoodName != nil {
+			providedCount++
+		}
+		if req.RecipeID != nil {
+			providedCount++
 		}
 		
-		if foodWithNutrients == nil {
+		if providedCount != 1 {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "Food not found",
-				Message: "Food with the specified FDC ID does not exist",
+				Error:   "Invalid request",
+				Message: fmt.Sprintf("Entry at position %d: exactly one of fdc_id, custom_food_name, or recipe_id must be provided", i),
 			})
 			return
 		}
-	}
 
-	// Create food entry
-	entry := &model.FoodEntry{
-		ID:                 uuid.New(),
-		UserID:             userID,
-		Date:               date,
-		MealType:           req.MealType,
-		FDCID:              req.FDCID,
-		CustomFoodName:     req.CustomFoodName,
-		RecipeID:           req.RecipeID,
-		AmountGrams:        req.AmountGrams,
-		CalculatedCalories: calculatedNutrients.Calories,
-		CalculatedProtein:  calculatedNutrients.Protein,
-		CalculatedFat:      calculatedNutrients.Fat,
-		CalculatedCarbs:    calculatedNutrients.Carbs,
-		CreatedAt:          time.Now(),
-	}
-
-	// Set FoodName for the entry
-	if req.FDCID != nil {
-		// Load food name from repository
-		food, err := h.foodRepo.GetFoodByID(c.Request.Context(), *req.FDCID)
-		if err == nil && food != nil && food.Food != nil {
-			foodName := food.Food.Description
-			entry.FoodName = &foodName
+		// Parse date
+		date, err := time.Parse("2006-01-02", req.Date)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error:   "Invalid date format",
+				Message: fmt.Sprintf("Entry at position %d: date must be in YYYY-MM-DD format", i),
+			})
+			return
 		}
-	} else if req.CustomFoodName != nil {
-		// For custom foods, use the custom food name
-		entry.FoodName = req.CustomFoodName
-	} else if req.RecipeID != nil {
-		// For recipes, we'll set the name later when loading entries
-		// The name will be loaded in GetDiaryEntries
+
+		// Calculate nutrients using the nutrient calculator
+		calculatedNutrients, err := nutrientCalculator.CalculateNutrientsWithFallback(
+			c.Request.Context(),
+			req.FDCID,
+			req.CustomCalories,
+			req.CustomProtein,
+			req.CustomFat,
+			req.CustomCarbs,
+			req.AmountGrams,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "Failed to calculate nutrients",
+				Message: fmt.Sprintf("Entry at position %d: %s", i, err.Error()),
+			})
+			return
+		}
+
+		// Create food entry
+		entry := &model.FoodEntry{
+			ID:                 uuid.New(),
+			UserID:             userID,
+			Date:               date,
+			MealType:           req.MealType,
+			FDCID:              req.FDCID,
+			CustomFoodName:     req.CustomFoodName,
+			RecipeID:           req.RecipeID,
+			AmountGrams:        req.AmountGrams,
+			CalculatedCalories: calculatedNutrients.Calories,
+			CalculatedProtein:  calculatedNutrients.Protein,
+			CalculatedFat:      calculatedNutrients.Fat,
+			CalculatedCarbs:    calculatedNutrients.Carbs,
+			CreatedAt:          time.Now(),
+		}
+
+		diaryEntries = append(diaryEntries, entry)
+	}
+
+	// Verify FDC IDs exist
+	if len(fdcIDsToVerify) > 0 {
+		uniqueFDCIDs := make(map[int]bool)
+		for _, fdcID := range fdcIDsToVerify {
+			uniqueFDCIDs[fdcID] = true
+		}
+
+		for fdcID := range uniqueFDCIDs {
+			foodWithNutrients, err := h.foodRepo.GetFoodByID(c.Request.Context(), fdcID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Error:   "Internal server error",
+					Message: err.Error(),
+				})
+				return
+			}
+			
+			if foodWithNutrients == nil {
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Error:   "Food not found",
+					Message: fmt.Sprintf("Food with FDC ID %d does not exist", fdcID),
+				})
+				return
+			}
+		}
+	}
+
+	// Set FoodName for entries with FDCID
+	// Collect unique FDCIDs for batch loading
+	fdcIDMap := make(map[int]bool)
+	for _, entry := range diaryEntries {
+		if entry.FDCID != nil {
+			fdcIDMap[*entry.FDCID] = true
+		}
+	}
+
+	// Load food names in batch
+	foodNames := make(map[int]string)
+	for fdcID := range fdcIDMap {
+		food, err := h.foodRepo.GetFoodByID(c.Request.Context(), fdcID)
+		if err == nil && food != nil && food.Food != nil {
+			foodNames[fdcID] = food.Food.Description
+		}
+	}
+
+	// Set FoodName for each entry
+	for _, entry := range diaryEntries {
+		if entry.FDCID != nil {
+			if name, ok := foodNames[*entry.FDCID]; ok {
+				entry.FoodName = &name
+			}
+		} else if entry.CustomFoodName != nil {
+			// For custom foods, use the custom food name
+			entry.FoodName = entry.CustomFoodName
+		}
 	}
 
 	// Save to database
-	err = h.diaryRepo.CreateFoodEntry(c.Request.Context(), entry)
+	if len(diaryEntries) == 1 {
+		// Use single insert for better error messages
+		err = h.diaryRepo.CreateFoodEntry(c.Request.Context(), diaryEntries[0])
+	} else {
+		// Use batch insert
+		err = h.diaryRepo.CreateFoodEntries(c.Request.Context(), diaryEntries)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "Internal server error",
@@ -350,7 +410,12 @@ func (h *DiaryHandler) CreateFoodEntry(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, entry)
+	// Return appropriate response
+	if len(diaryEntries) == 1 {
+		c.JSON(http.StatusCreated, diaryEntries[0])
+	} else {
+		c.JSON(http.StatusCreated, diaryEntries)
+	}
 }
 
 // UpdateFoodEntry handles PUT /api/v1/diary/entries/{id}
